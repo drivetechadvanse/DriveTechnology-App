@@ -28,8 +28,26 @@ function processImage(i) {
 function handleAuth() {
         const userIn = document.getElementById('login-email').value.trim();
         const passIn = document.getElementById('login-pass').value.trim();
-        
+
+        // Limpieza mínima de vistas antes de mostrar el panel correcto
+        document.getElementById('passenger-view').classList.add('hidden');
+        document.getElementById('admin-view').classList.add('hidden');
+        document.getElementById('driver-view-active').classList.add('hidden');
+        document.getElementById('driver-selection-view').classList.add('hidden');
+        document.getElementById('driver-registration-view').classList.add('hidden');
+
+        document.getElementById('nav-passenger').classList.add('hidden');
+        document.getElementById('nav-admin').classList.add('hidden');
+        document.getElementById('user-profile-header').classList.add('hidden');
+        document.getElementById('side-header-admin').classList.add('hidden');
+
+        document.getElementById('sidebar').classList.remove('open');
+        document.getElementById('cost-sheet').classList.remove('active');
+        document.getElementById('overlay').classList.remove('opacity-100', 'pointer-events-auto');
+
         if (userIn === 'admincentral' && passIn === '9271@') {
+            currentUser = null;
+
             document.getElementById('login-screen').classList.add('hidden');
             document.getElementById('admin-view').classList.remove('hidden');
             document.getElementById('nav-admin').classList.remove('hidden');
@@ -38,11 +56,11 @@ function handleAuth() {
         } else {
             const db = JSON.parse(localStorage.getItem('db_usuarios_permanente') || '[]');
             const user = db.find(u => (u.usuario === userIn.toLowerCase() || u.correo === userIn.toLowerCase()) && u.pass === passIn);
-            
+
             if (user) { 
                 currentUser = user;
                 document.getElementById('login-screen').classList.add('hidden'); 
-                
+
                 if (user.role === 'conductor') {
 
                     document.getElementById('passenger-view').classList.add('hidden');
