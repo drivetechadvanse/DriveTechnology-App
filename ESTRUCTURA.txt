@@ -1,0 +1,18 @@
+Drive MX separado por carpetas independientes dentro de src/
+
+index.html
+src/
+├── app/
+├── cartera/
+├── conductor/
+├── firebase/
+├── firestore/
+├── maps/
+├── panel-control/
+├── pasajero/
+├── pantalla-inicio/
+├── pantalla-pasajero/
+├── pantalla-conductor/
+├── pantalla-panel-control/
+├── styles/
+└── assets/

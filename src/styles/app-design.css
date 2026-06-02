@@ -1,0 +1,23 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
+        body { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; overflow: hidden; background-color: #000; height: 100dvh; }
+        #app-container { height: 100dvh; }
+        #sidebar { transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1); transform: translateX(-100%); }
+        #sidebar.open { transform: translateX(0); }
+        #cost-sheet { transition: transform 0.5s cubic-bezier(0.32, 0.72, 0, 1); transform: translateY(100%); padding-bottom: env(safe-area-inset-bottom, 2rem); }
+        #cost-sheet.active { transform: translateY(0); }
+        .accordion-content { max-height: 0; overflow: hidden; transition: max-height 0.4s ease-out; }
+        .accordion-content.expanded { max-height: 500px; }
+        .map-sim { background-color: #f3f4f6; background-image: radial-gradient(#d1d5db 1px, transparent 1px); background-size: 25px 25px; flex-grow: 1; }
+        .radar-pulse { position: absolute; width: 100px; height: 100px; background: rgba(239, 68, 68, 0.15); border-radius: 100%; animation: radar 2s infinite; }
+        @keyframes radar { 0% { transform: scale(0.3); opacity: 1; } 100% { transform: scale(2.5); opacity: 0; } }
+        .hidden-view { opacity: 0; transform: translateY(-20px); pointer-events: none; transition: all 0.4s ease; }
+        @keyframes bounce-custom { 0%, 100% { transform: translateY(0) scaleY(1); } 40% { transform: translateY(-30px) scaleY(1.1); } 90% { transform: translateY(0) scaleY(0.9); } }
+        .animate-bounce-custom { animation: bounce-custom 0.8s infinite; }
+        .reg-input { width: 100%; padding: 1rem; background-color: #f9fafb; border-radius: 0.75rem; border: 2px solid transparent; outline: none; font-size: 0.75rem; font-weight: 700; }
+        .reg-input:focus { border-color: #ef4444; background-color: #fff; }
+        .reg-label { font-size: 9px; font-weight: 900; color: #9ca3af; text-transform: uppercase; margin-bottom: 0.4rem; display: block; margin-left: 0.5rem; }
+        .payment-opt.selected { border-color: #ef4444; background-color: #fef2f2; color: #ef4444; }
+        .card-selected { border-color: #ef4444 !important; background-color: #fef2f2 !important; ring: 2px; ring-color: #ef4444; }
+        
+        /* Animación para pulso de búsqueda de viajes */
+        .ping-slow { animation: ping 3s cubic-bezier(0, 0, 0.2, 1) infinite; }
