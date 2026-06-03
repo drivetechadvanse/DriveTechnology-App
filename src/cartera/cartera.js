@@ -1,24 +1,63 @@
-function getWalletData(userId) {
-        return JSON.parse(localStorage.getItem(`wallet_${userId}`)) || { saldo: 0.00, historial: [], trips: 0 };
+async function getWalletData(userId) {
+        const { auth } = await getFirebaseServices();
+        const uid = userId || auth.currentUser?.uid || currentUser?.uid || currentUser?.id;
+        if (!uid) return { saldo: 0.00, ingresos: 0.00, egresos: 0.00, saldoDisponible: 0.00, historial: [], trips: 0 };
+
+        const cartera = await obtenerCarteraFirestore(uid);
+        const movimientos = await obtenerMovimientosFirestore(uid);
+
+        return {
+            uid: uid,
+            saldo: Number(cartera.saldo || 0),
+            ingresos: Number(cartera.ingresos || 0),
+            egresos: Number(cartera.egresos || 0),
+            saldoDisponible: Number(cartera.saldoDisponible ?? cartera.saldo ?? 0),
+            historial: movimientos.map(m => ({
+                id: m.id,
+                fecha: m.fecha?.toDate ? m.fecha.toDate().toLocaleString() : new Date().toLocaleString(),
+                tipo: m.tipo,
+                monto: Number(m.monto || 0),
+                desc: m.descripcion || m.desc || '',
+                descripcion: m.descripcion || m.desc || '',
+                origen: m.origen || 'cartera'
+            })),
+            trips: Number(cartera.trips || 0),
+            ultimaActualizacion: cartera.ultimaActualizacion || null
+        };
     }
 
-function saveWalletData(userId, data) {
-        localStorage.setItem(`wallet_${userId}`, JSON.stringify(data));
+async function saveWalletData(userId, data) {
+        const { auth } = await getFirebaseServices();
+        const uid = userId || auth.currentUser?.uid || currentUser?.uid || currentUser?.id;
+        if (!uid) return { saldo: 0.00, ingresos: 0.00, egresos: 0.00, saldoDisponible: 0.00, historial: [], trips: 0 };
+
+        const carteraActual = await obtenerCarteraFirestore(uid);
+        const datosFinales = {
+            saldo: Number(data?.saldo ?? carteraActual.saldo ?? 0),
+            ingresos: Number(data?.ingresos ?? carteraActual.ingresos ?? 0),
+            egresos: Number(data?.egresos ?? carteraActual.egresos ?? 0),
+            saldoDisponible: Number(data?.saldoDisponible ?? data?.saldo ?? carteraActual.saldoDisponible ?? carteraActual.saldo ?? 0),
+            trips: Number(data?.trips ?? carteraActual.trips ?? 0)
+        };
+
+        return await guardarCarteraFirestore(uid, datosFinales);
     }
 
-function addMovement(userId, tipo, monto, descripcion) {
-        let wallet = getWalletData(userId);
-        if (tipo === 'sumar') wallet.saldo += monto;
-        else wallet.saldo -= monto;
-        wallet.historial.unshift({ fecha: new Date().toLocaleString(), tipo: tipo, monto: monto, desc: descripcion });
-        saveWalletData(userId, wallet);
-        return wallet;
+async function addMovement(userId, tipo, monto, descripcion) {
+        const { auth } = await getFirebaseServices();
+        const uid = userId || auth.currentUser?.uid || currentUser?.uid || currentUser?.id;
+        if (!uid) return { saldo: 0.00, ingresos: 0.00, egresos: 0.00, saldoDisponible: 0.00, historial: [], trips: 0 };
+
+        await modificarSaldoCarteraFirestore(uid, tipo, monto, descripcion, 'cartera');
+        return await getWalletData(uid);
     }
 
-function updateWalletDisplay() {
+async function updateWalletDisplay() {
         if (!currentUser) return;
-        const wallet = getWalletData(currentUser.id);
-        document.getElementById('display-saldo').innerText = `$${wallet.saldo.toFixed(2)} MXN`;
+        const wallet = await getWalletData(currentUser.uid || currentUser.id);
+        const displaySaldo = document.getElementById('display-saldo');
+        if (displaySaldo) displaySaldo.innerText = `$${wallet.saldo.toFixed(2)} MXN`;
     }
 
 function setPay(btn, method) { document.querySelectorAll('.payment-opt').forEach(b => b.classList.remove('selected')); btn.classList.add('selected'); appState.selectedPayment = method; }
+
