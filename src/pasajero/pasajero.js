@@ -1,38 +1,70 @@
-function savePassengerRequest() {
-        const userId = String(Date.now());
-        const userValue = document.getElementById('reg-user').value.toLowerCase().trim();
-        const newRequest = {
-            id: userId, 
-            name: document.getElementById('dr-name').value, 
-            usuario: userValue,
-            pass: document.getElementById('reg-pass').value, 
-            correo: document.getElementById('reg-email').value.toLowerCase().trim(),
-            phone: document.getElementById('dr-phone').value, 
-            foto: tempBase64Photo, 
-            status: 'activo', 
-            role: 'pasajero',
-            date: new Date().toLocaleDateString()
-        };
-        let db = JSON.parse(localStorage.getItem('db_usuarios_permanente') || '[]');
-        db.push(newRequest); 
-        localStorage.setItem('db_usuarios_permanente', JSON.stringify(db));
-        saveWalletData(userId, { saldo: 0.00, historial: [], trips: 0 });
-        alert(`Cuenta creada correctamente.`); 
-        location.reload();
+async function savePassengerRequest() {
+        const userValue = document.getElementById('reg-email').value.toLowerCase().trim();
+        const passValue = document.getElementById('reg-pass').value;
+
+        try {
+            const { auth } = await getFirebaseServices();
+            const credential = await auth.createUserWithEmailAndPassword(userValue, passValue);
+            const firebaseUser = credential.user;
+            const fotoUrl = await subirArchivoBase64Storage(tempBase64Photo, `usuarios/${firebaseUser.uid}/perfil/foto-perfil`);
+
+            const newRequest = {
+                id: firebaseUser.uid,
+                uid: firebaseUser.uid,
+                name: document.getElementById('dr-name').value,
+                nombre: document.getElementById('dr-name').value,
+                usuario: userValue,
+                pass: '',
+                correo: userValue,
+                email: userValue,
+                phone: document.getElementById('dr-phone').value,
+                telefono: document.getElementById('dr-phone').value,
+                foto: fotoUrl || tempBase64Photo,
+                status: 'activo',
+                role: 'pasajero',
+                rolePassenger: true,
+                roleDriver: false,
+                driverStatus: 'no_registrado',
+                date: new Date().toLocaleDateString()
+            };
+
+            await crearUsuarioFirestore(firebaseUser.uid, {
+                nombre: newRequest.nombre,
+                correo: newRequest.correo,
+                telefono: newRequest.telefono,
+                foto: newRequest.foto,
+                roleDriver: false,
+                driverStatus: 'no_registrado'
+            });
+
+            await saveWalletData(firebaseUser.uid, { saldo: 0.00, historial: [], trips: 0 });
+            currentUser = newRequest;
+
+            alert(`Cuenta creada correctamente.`);
+            document.getElementById('driver-registration-view').classList.add('hidden');
+            document.getElementById('login-screen').classList.add('hidden');
+            document.getElementById('passenger-view').classList.remove('hidden');
+            document.getElementById('nav-passenger').classList.remove('hidden');
+            document.getElementById('user-profile-header').classList.remove('hidden');
+            updateProfileUI();
+            lucide.createIcons();
+        } catch (error) {
+            alert(error.message || 'No se pudo crear la cuenta.');
+        }
     }
 
-function handleRequest() {
-        const wallet = getWalletData(currentUser.id);
+async function handleRequest() {
+        const wallet = await getWalletData(currentUser.uid || currentUser.id);
         if (wallet.saldo < 0) { alert("Saldo negativo. Recarga para continuar."); return; }
         if (appState.selectedPayment === 'cartera' && wallet.saldo < appState.precioViaje) { 
             alert('Saldo insuficiente.'); return; 
         }
         if (appState.selectedPayment === 'cartera') { 
-            addMovement(currentUser.id, 'restar', appState.precioViaje, 'Pago Viaje'); 
+            await addMovement(currentUser.uid || currentUser.id, 'restar', appState.precioViaje, 'Pago Viaje'); 
         }
         wallet.trips = (wallet.trips || 0) + 1;
-        saveWalletData(currentUser.id, wallet);
-        updateProfileUI();
+        await saveWalletData(currentUser.uid || currentUser.id, wallet);
+        await updateProfileUI();
         startRadar();
     }
 
@@ -83,3 +115,4 @@ function renderAvailableDrivers() {
         });
         lucide.createIcons();
     }
+
