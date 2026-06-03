@@ -1,4 +1,4 @@
-function updateProfileUI() {
+async function updateProfileUI() {
         if (!currentUser) return;
         const sidePhoto = document.getElementById('side-user-photo');
         const sideName = document.getElementById('side-user-name');
@@ -14,9 +14,10 @@ function updateProfileUI() {
             topIcon.classList.add('hidden');
         }
 
-        const wallet = getWalletData(currentUser.id);
+        const wallet = await getWalletData(currentUser.uid || currentUser.id);
         sideTrips.innerText = wallet.trips || 0;
-        updateWalletDisplay();
+        await updateWalletDisplay();
     }
 
 function openCosts() { document.getElementById('cost-sheet').classList.add('active'); document.getElementById('overlay').classList.add('opacity-100', 'pointer-events-auto'); }
+
