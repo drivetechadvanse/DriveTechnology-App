@@ -1,44 +1,77 @@
-function saveDriverRequest() { 
-        const driverId = "DRV_" + Date.now();
-        const newDriver = {
-            id: driverId,
-            name: document.getElementById('dr-name').value,
-            usuario: document.getElementById('reg-user').value || 'driver_' + Date.now(),
-            pass: document.getElementById('reg-pass').value || '1234',
-            phone: document.getElementById('dr-phone').value,
-            foto: tempBase64Photo,
-            status: 'activo',
-            role: 'conductor',
-            date: new Date().toLocaleDateString(),
-            vehiculo: { 
-                marca: document.getElementById('v-brand').value,
-                modelo: document.getElementById('v-model').value,
-                placa: document.getElementById('v-plate').value
+async function saveDriverRequest() { 
+        try {
+            const { auth } = await getFirebaseServices();
+            const firebaseUser = auth.currentUser;
+
+            if (!firebaseUser || !currentUser) {
+                alert('Debes iniciar sesión como pasajero antes de registrarte como conductor.');
+                return;
             }
-        };
 
-        // Guardar en base de datos de usuarios (como activo por petición de acceso directo)
-        let db = JSON.parse(localStorage.getItem('db_usuarios_permanente') || '[]');
-        db.push(newDriver);
-        localStorage.setItem('db_usuarios_permanente', JSON.stringify(db));
-        
-        // Crear cartera
-        saveWalletData(driverId, { saldo: 0.00, historial: [], trips: 0 });
+            const driverId = firebaseUser.uid;
+            const ineFrontUrl = await subirInputFileStorage('ine-f-input', `conductores/${driverId}/documentos/ine-frontal`);
+            const ineBackUrl = await subirInputFileStorage('ine-b-input', `conductores/${driverId}/documentos/ine-trasera`);
+            const circUrl = await subirInputFileStorage('circ-input', `conductores/${driverId}/documentos/tarjeta-circulacion`);
+            const vehiclePhotoUrl = await subirInputFileStorage('v-photo-input', `conductores/${driverId}/documentos/vehiculo`);
 
-        // Acceso Automático
-        currentUser = newDriver;
-        
-        // Ocultar registro, mostrar panel driver
-        document.getElementById('driver-registration-view').classList.add('hidden');
-        document.getElementById('driver-view-active').classList.remove('hidden');
-        
-        // Cargar foto en el panel driver
-        if(tempBase64Photo) {
-            document.getElementById('active-driver-photo').src = tempBase64Photo;
+            const newDriver = {
+                id: driverId,
+                uid: driverId,
+                name: currentUser.name || document.getElementById('dr-name').value,
+                nombre: currentUser.nombre || currentUser.name || document.getElementById('dr-name').value,
+                usuario: currentUser.usuario || currentUser.correo || firebaseUser.email,
+                pass: '',
+                phone: currentUser.phone || document.getElementById('dr-phone').value,
+                telefono: currentUser.telefono || currentUser.phone || document.getElementById('dr-phone').value,
+                foto: currentUser.foto || tempBase64Photo,
+                status: 'activo',
+                role: 'conductor',
+                rolePassenger: true,
+                roleDriver: true,
+                driverStatus: 'activo',
+                date: new Date().toLocaleDateString(),
+                vehiculo: { 
+                    marca: document.getElementById('v-brand').value,
+                    modelo: document.getElementById('v-model').value,
+                    placa: document.getElementById('v-plate').value,
+                    anio: document.getElementById('v-year').value,
+                    color: document.getElementById('v-color').value
+                },
+                documentos: {
+                    ineFrontal: ineFrontUrl,
+                    ineTrasera: ineBackUrl,
+                    tarjetaCirculacion: circUrl,
+                    fotoVehiculo: vehiclePhotoUrl
+                }
+            };
+
+            await crearConductorFirestore(driverId, {
+                vehiculo: newDriver.vehiculo,
+                placas: newDriver.vehiculo.placa,
+                licencia: '',
+                documentos: newDriver.documentos,
+                estado: 'activo'
+            });
+
+            await actualizarUsuarioFirestore(driverId, {
+                rolePassenger: true,
+                roleDriver: true,
+                driverStatus: 'activo'
+            });
+
+            currentUser = {
+                ...currentUser,
+                ...newDriver
+            };
+
+            await saveWalletData(driverId, await getWalletData(driverId));
+            showDriverPanel();
+
+            alert('¡Bienvenido Driver! Tu acceso como conductor ha sido activado en la misma cuenta.');
+            lucide.createIcons();
+        } catch (error) {
+            alert(error.message || 'No se pudo guardar el registro de conductor.');
         }
-        
-        alert('¡Bienvenido Driver! Tu cuenta ha sido activada automáticamente.');
-        lucide.createIcons();
     }
 
 function toggleDriverAvailability() {
@@ -138,9 +171,79 @@ function renderMockServices() {
 
 function applyToBeDriver() {
         registrationMode = 'driver'; closeAll();
+
+        if (currentUser && currentUser.roleDriver === true) {
+            showDriverPanel();
+            return;
+        }
+
         document.getElementById('passenger-view').classList.add('hidden');
         document.getElementById('driver-registration-view').classList.remove('hidden');
         document.getElementById('reg-main-title').innerHTML = 'REGISTRO <span class="text-red-600 uppercase">DRIVER</span>';
         document.getElementById('fields-account').classList.add('hidden');
         goToStep(1);
     }
+
+function showDriverPanel() {
+        closeAll();
+        document.getElementById('login-screen').classList.add('hidden');
+        document.getElementById('passenger-view').classList.add('hidden');
+        document.getElementById('admin-view').classList.add('hidden');
+        document.getElementById('driver-selection-view').classList.add('hidden');
+        document.getElementById('driver-registration-view').classList.add('hidden');
+
+        document.getElementById('nav-passenger').classList.add('hidden');
+        document.getElementById('nav-admin').classList.add('hidden');
+        document.getElementById('user-profile-header').classList.add('hidden');
+        document.getElementById('side-header-admin').classList.add('hidden');
+
+        document.getElementById('driver-view-active').classList.remove('hidden');
+
+        if(currentUser && currentUser.foto) {
+            document.getElementById('active-driver-photo').src = currentUser.foto;
+        }
+
+        ensurePassengerButtonInDriverPanel();
+        lucide.createIcons();
+    }
+
+function showPassengerPanel() {
+        closeDriverSidebar();
+        closeAll();
+        document.getElementById('login-screen').classList.add('hidden');
+        document.getElementById('driver-view-active').classList.add('hidden');
+        document.getElementById('admin-view').classList.add('hidden');
+        document.getElementById('driver-selection-view').classList.add('hidden');
+        document.getElementById('driver-registration-view').classList.add('hidden');
+
+        document.getElementById('nav-admin').classList.add('hidden');
+        document.getElementById('side-header-admin').classList.add('hidden');
+
+        document.getElementById('passenger-view').classList.remove('hidden');
+        document.getElementById('nav-passenger').classList.remove('hidden');
+        document.getElementById('user-profile-header').classList.remove('hidden');
+
+        if (currentUser) {
+            currentUser.role = 'pasajero';
+        }
+
+        updateProfileUI();
+        lucide.createIcons();
+    }
+
+function ensurePassengerButtonInDriverPanel() {
+        const driverSidebar = document.getElementById('driver-sidebar');
+        if (!driverSidebar) return;
+        if (document.getElementById('btn-driver-to-passenger')) return;
+
+        const content = driverSidebar.querySelector('.p-4');
+        if (!content) return;
+
+        content.innerHTML += `
+            <button id="btn-driver-to-passenger" onclick="showPassengerPanel()" class="w-full flex items-center justify-center gap-2 bg-red-600 text-white py-3 rounded-xl font-black text-[10px] uppercase italic active:scale-95 transition-all">
+                <i data-lucide="user" class="w-4 h-4"></i> Pasajero
+            </button>
+        `;
+    }
+
+                
