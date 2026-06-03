@@ -1,12 +1,18 @@
-function renderAdminPassengers() {
+async function renderAdminPassengers() {
         currentAdminView = 'passengers';
         selectedIds = [];
 
         const container = document.getElementById('admin-requests-container');
+        let reqs = [];
 
-        const reqs = JSON.parse(
-            localStorage.getItem('db_usuarios_permanente') || '[]'
-        ).filter(user => user.role === 'pasajero');
+        try {
+            const usuarios = await obtenerUsuariosFirestore();
+            reqs = usuarios.filter(user => user.rolePassenger === true);
+        } catch (error) {
+            reqs = JSON.parse(
+                localStorage.getItem('db_usuarios_permanente') || '[]'
+            ).filter(user => user.role === 'pasajero');
+        }
 
         document.getElementById('admin-list-title').innerText = "Pasajeros Registrados";
 
@@ -16,13 +22,13 @@ function renderAdminPassengers() {
 
         reqs.forEach(req => {
             container.innerHTML += `
-                <div id="card-${req.id}" onclick="toggleCardSelection('${req.id}')" class="bg-white p-5 rounded-[2rem] shadow-sm border border-gray-100 flex flex-col gap-4 cursor-pointer relative transition-all">
+                <div id="card-${req.uid || req.id}" onclick="toggleCardSelection('${req.uid || req.id}')" class="bg-white p-5 rounded-[2rem] shadow-sm border border-gray-100 flex flex-col gap-4 cursor-pointer relative transition-all">
                     <div class="flex items-center justify-between">
                         <div class="flex items-center gap-3">
                             <img src="${req.foto || ''}" class="w-12 h-12 bg-gray-900 rounded-2xl object-cover shadow-lg">
                             <div>
-                                <h4 class="text-[12px] font-black uppercase italic text-gray-900 leading-none">${req.name}</h4>
-                                <p class="text-[8px] font-bold text-gray-400 mt-1">ID: ${req.id} | TEL: ${req.phone || 'N/A'}</p>
+                                <h4 class="text-[12px] font-black uppercase italic text-gray-900 leading-none">${req.nombre || req.name}</h4>
+                                <p class="text-[8px] font-bold text-gray-400 mt-1">ID: ${req.uid || req.id} | TEL: ${req.telefono || req.phone || 'N/A'}</p>
                             </div>
                         </div>
                         <span class="text-[8px] font-black px-3 py-1 bg-green-100 text-green-600 rounded-full uppercase italic border border-green-200">Activo</span>
@@ -33,15 +39,21 @@ function renderAdminPassengers() {
         lucide.createIcons();
     }
 
-function renderAdminRequests() {
+async function renderAdminRequests() {
         currentAdminView = 'requests';
         selectedIds = [];
 
         const container = document.getElementById('admin-requests-container');
+        let reqs = [];
 
-        const reqs = JSON.parse(
-            localStorage.getItem('db_usuarios_permanente') || '[]'
-        ).filter(user => user.role === 'conductor');
+        try {
+            const usuarios = await obtenerUsuariosFirestore();
+            reqs = usuarios.filter(user => user.roleDriver === true);
+        } catch (error) {
+            reqs = JSON.parse(
+                localStorage.getItem('db_usuarios_permanente') || '[]'
+            ).filter(user => user.role === 'conductor');
+        }
 
         document.getElementById('admin-list-title').innerText = "Conductores Registrados";
 
@@ -49,22 +61,31 @@ function renderAdminRequests() {
             ? '<p class="text-center text-[9px] uppercase py-10">Sin conductores</p>'
             : '';
 
-        reqs.forEach(req => {
+        for (const req of reqs) {
+            let conductorData = null;
+            try {
+                conductorData = await obtenerConductorFirestore(req.uid || req.id);
+            } catch (error) {
+                conductorData = null;
+            }
+
+            const vehiculo = conductorData?.vehiculo || req.vehiculo || {};
+
             container.innerHTML += `
-                <div id="card-${req.id}" onclick="toggleCardSelection('${req.id}')" class="bg-white p-5 rounded-[2rem] shadow-sm border border-gray-100 flex flex-col gap-4 cursor-pointer relative transition-all">
+                <div id="card-${req.uid || req.id}" onclick="toggleCardSelection('${req.uid || req.id}')" class="bg-white p-5 rounded-[2rem] shadow-sm border border-gray-100 flex flex-col gap-4 cursor-pointer relative transition-all">
                     <div class="flex items-center justify-between">
                         <div class="flex items-center gap-3">
                             <img src="${req.foto || ''}" class="w-12 h-12 bg-red-600 rounded-2xl flex items-center justify-center object-cover shadow-lg">
                             <div>
-                                <h4 class="text-[12px] font-black uppercase italic text-gray-900 leading-none">${req.name}</h4>
-                                <p class="text-[8px] font-bold text-gray-400 mt-1">TEL: ${req.phone || 'NO REGISTRADO'}</p>
-                                <p class="text-[8px] font-black text-red-600 uppercase mt-0.5">${req.vehiculo?.marca || 'Conductor'} - ${req.date}</p>
+                                <h4 class="text-[12px] font-black uppercase italic text-gray-900 leading-none">${req.nombre || req.name}</h4>
+                                <p class="text-[8px] font-bold text-gray-400 mt-1">TEL: ${req.telefono || req.phone || 'NO REGISTRADO'}</p>
+                                <p class="text-[8px] font-black text-red-600 uppercase mt-0.5">${vehiculo.marca || 'Conductor'} - ${req.driverStatus || req.date || 'activo'}</p>
                             </div>
                         </div>
                         <span class="text-[8px] font-black px-3 py-1 bg-red-100 text-red-600 rounded-full uppercase italic">Conductor</span>
                     </div>
                 </div>`;
-        });
+        }
 
         lucide.createIcons();
     }
@@ -103,15 +124,29 @@ function closeAdminWallet() {
         document.getElementById('admin-title').innerHTML = 'PANEL <span class="text-red-600 text-lg">ADMIN</span>';
     }
 
-function searchPassengerInWallet() {
+async function searchPassengerInWallet() {
         const term = document.getElementById('admin-search-user').value.toLowerCase().trim();
-        const pasajeros = JSON.parse(localStorage.getItem('db_usuarios_permanente') || '[]');
-        userTargetAdmin = pasajeros.find(u => u.name.toLowerCase().includes(term) || u.correo.toLowerCase().includes(term) || u.usuario === term);
+        let pasajeros = [];
+
+        try {
+            const usuarios = await obtenerUsuariosFirestore();
+            pasajeros = usuarios.filter(u => u.rolePassenger === true);
+        } catch (error) {
+            pasajeros = [];
+        }
+
+        userTargetAdmin = pasajeros.find(u =>
+            String(u.nombre || u.name || '').toLowerCase().includes(term) ||
+            String(u.correo || u.email || '').toLowerCase().includes(term) ||
+            String(u.usuario || '').toLowerCase() === term ||
+            String(u.telefono || u.phone || '').toLowerCase().includes(term)
+        );
+
         const disp = document.getElementById('admin-view-saldo');
         if (userTargetAdmin) {
-            const wallet = getWalletData(userTargetAdmin.id);
+            const wallet = await getWalletData(userTargetAdmin.uid || userTargetAdmin.id);
             disp.innerText = `$${wallet.saldo.toFixed(2)} MXN`;
-            document.getElementById('admin-search-status').innerText = `Pasajero: ${userTargetAdmin.name}`;
+            document.getElementById('admin-search-status').innerText = `Pasajero: ${userTargetAdmin.nombre || userTargetAdmin.name}`;
             renderHistorial(wallet.historial, document.getElementById('admin-movimientos-list'));
         } else { disp.innerText = "No encontrado"; }
     }
@@ -124,10 +159,11 @@ function renderHistorial(hist, container) {
         });
     }
 
-function adminModificarSaldo(tipo) {
+async function adminModificarSaldo(tipo) {
         if (!userTargetAdmin) return;
         const monto = parseFloat(document.getElementById('admin-monto-input').value);
         if (isNaN(monto) || monto <= 0) return;
-        addMovement(userTargetAdmin.id, tipo, monto, tipo === 'sumar' ? 'Recarga Admin' : 'Ajuste Admin');
-        document.getElementById('admin-monto-input').value = ''; searchPassengerInWallet();
+        await addMovement(userTargetAdmin.uid || userTargetAdmin.id, tipo, monto, tipo === 'sumar' ? 'Recarga Admin' : 'Ajuste Admin');
+        document.getElementById('admin-monto-input').value = ''; await searchPassengerInWallet();
     }
+
